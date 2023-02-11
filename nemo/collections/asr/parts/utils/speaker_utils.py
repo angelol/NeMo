@@ -462,6 +462,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         if cuda:
             torch.cuda.empty_cache()
         else:
+            import gc
             gc.collect()
             
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
