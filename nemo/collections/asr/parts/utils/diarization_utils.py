@@ -68,7 +68,7 @@ def write_txt(w_path: str, val: str):
         val (str):
             String variable to be written
     """
-    with open(w_path, "w") as output:
+    with open(w_path, "w", encoding="utf-8") as output:
         output.write(val + '\n')
 
 
