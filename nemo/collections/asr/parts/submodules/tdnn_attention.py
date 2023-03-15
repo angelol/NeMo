@@ -269,16 +269,6 @@ class TDNNSEModule(nn.Module):
 
 
 class AttentivePoolLayer(nn.Module):
-    """
-    Attention pooling layer for pooling speaker embeddings
-    Reference: ECAPA-TDNN Embeddings for Speaker Diarization (https://arxiv.org/pdf/2104.01466.pdf)
-    inputs:
-        inp_filters: input feature channel length from encoder
-        attention_channels: intermediate attention channel size
-        kernel_size: kernel_size for TDNN and attention conv1d layers (default: 1)
-        dilation: dilation size for TDNN and attention conv1d layers  (default: 1) 
-    """
-
     def __init__(
         self,
         inp_filters: int,
@@ -292,7 +282,8 @@ class AttentivePoolLayer(nn.Module):
         self.feat_in = 2 * inp_filters
 
         self.attention_layer = nn.Sequential(
-            TDNNModule(inp_filters * 3, attention_channels, kernel_size=kernel_size, dilation=dilation),
+            TDNNModule(inp_filters * 3, attention_channels,
+                       kernel_size=kernel_size, dilation=dilation),
             nn.Tanh(),
             nn.Conv1d(
                 in_channels=attention_channels, out_channels=inp_filters, kernel_size=kernel_size, dilation=dilation,
@@ -306,19 +297,29 @@ class AttentivePoolLayer(nn.Module):
         if length is None:
             length = torch.ones(x.shape[0], device=x.device)
 
-        mask, num_values = lens_to_mask(length, max_len=max_len, device=x.device)
+        mask, num_values = lens_to_mask(
+            length, max_len=max_len, device=x.device)
 
-        # encoder statistics
         mean, std = get_statistics_with_mask(x, mask / num_values)
-        mean = mean.unsqueeze(2).repeat(1, 1, max_len)
-        std = std.unsqueeze(2).repeat(1, 1, max_len)
-        attn = torch.cat([x, mean, std], dim=1)
 
-        # attention statistics
-        attn = self.attention_layer(attn)  # attention pass
-        attn = attn.masked_fill(mask == 0, -inf)
-        alpha = F.softmax(attn, dim=2)  # attention values, α
-        mu, sg = get_statistics_with_mask(x, alpha)  # µ and ∑
+        # Reuse existing tensors for mean and std
+        mean.unsqueeze_(2)
+        std.unsqueeze_(2)
+        mean.repeat_interleave(repeats=max_len, dim=2)
+        std.repeat_interleave(repeats=max_len, dim=2)
 
-        # gather
-        return torch.cat((mu, sg), dim=1).unsqueeze(2)
+        # Reuse x tensor for attn instead of creating a new one
+        x = torch.cat([x, mean, std], dim=1)
+
+        x = self.attention_layer(x)
+        x.masked_fill_(mask == 0, -inf)
+        alpha = F.softmax(x, dim=2)
+
+        mu, sg = get_statistics_with_mask(x, alpha)
+
+        # Reuse mu tensor for the final output instead of creating a new one
+        mu.unsqueeze_(2)
+        sg.unsqueeze_(2)
+        mu = torch.cat((mu, sg), dim=1)
+
+        return mu
