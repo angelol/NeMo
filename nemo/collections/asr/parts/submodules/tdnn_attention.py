@@ -196,12 +196,10 @@ class MaskedSEModule(nn.Module):
     def __init__(self, inp_filters: int, se_filters: int, out_filters: int, kernel_size: int = 1, dilation: int = 1):
         super().__init__()
         self.se_layer = nn.Sequential(
-            nn.Conv1d(inp_filters, se_filters,
-                      kernel_size=kernel_size, dilation=dilation,),
+            nn.Conv1d(inp_filters, se_filters, kernel_size=kernel_size, dilation=dilation,),
             nn.ReLU(),
             nn.BatchNorm1d(se_filters),
-            nn.Conv1d(se_filters, out_filters,
-                      kernel_size=kernel_size, dilation=dilation,),
+            nn.Conv1d(se_filters, out_filters, kernel_size=kernel_size, dilation=dilation,),
             nn.Sigmoid(),
         )
 
@@ -210,8 +208,7 @@ class MaskedSEModule(nn.Module):
             x = torch.mean(input, dim=2, keep_dim=True)
         else:
             max_len = input.size(2)
-            mask, num_values = lens_to_mask(
-                length, max_len=max_len, device=input.device)
+            mask, num_values = lens_to_mask(length, max_len=max_len, device=input.device)
             x = torch.sum((input * mask), dim=2, keepdim=True) / (num_values)
 
         out = self.se_layer(x)
